@@ -1,0 +1,27 @@
+[tool.black]
+line-length = 90
+target-version = ['py39']
+include = '\.pyi?$'
+extend-exclude = '^external/'
+override = "skip"
+ignore_missing_imports = true
+disable-error-code = "override"
+
+[tool.poetry]
+name = "template-instructions"
+version = "0.1.0"
+description = "Create synthetic instructions for VLN datasets"
+authors = ["Pierre-Louis Guhur <pierrelouisguhur@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+tqdm = "^4.62.3"
+nltk = "3.6.5"
+transformers = "^4.15.0"
+typed-argument-parser = "^1.7.2"
+gdown = "^4.2.1"
+allennlp = "^2.9.0"
+allennlp-models = "^2.9.0"
+
+[tool.pyright]
+reportMissingImports = "False"
