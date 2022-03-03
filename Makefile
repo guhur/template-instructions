@@ -22,8 +22,7 @@ reverie: install
 datasets: soon reverie # download all datasets
 
 template: # datasets
-	poetry run extract_templates.py --mode soon --data data/soon/train.json --output data/soon/template-train.json
-	poetry run extract_fillers.py
-	poetry run fillin_blanks.py
-
+	poetry run extract_templates.py --mode soon --data data/soon/train.json --output data/soon/templates.json
+	poetry run extract_fillers.py --data_dir data/hm3d --output data/fillers.json
+	poetry run fillin_blanks.py --mode soon --tpl data/soon/templates.json --filler data/fillers.json --output data/instructions.json
 	
