@@ -44,13 +44,6 @@ LARGE = ['big', 'huge', 'sizeable', 'substantial', 'immense', 'enormous', 'colos
 # vast cosmic  goodly prodigious tremendous gigantic giant monumental stupendous
 
 
-def detect_attributes(obj):
-    size = np.prod(obj['3d_size'])
-    if size > 0.5:
-        return [random.choice(LARGE)]
-    return []
-
-    
 class FillInTheBlankDataset(Dataset):
     """
     Load the preprocessed data and produce a list of fillers.
@@ -75,10 +68,11 @@ class FillInTheBlankDataset(Dataset):
         sentences = []
         for i in range(3):
             template = random.choice(self.templates)
+            neighbor = random.choice(obj['neighbors'])['name'] if obj['neighbors'] != [] else 'next to this object'
             sentences.append(
                 template.replace("[object]", obj["name"])
                 .replace("[attr]", " ".join(obj["attributes"]))
-                .replace("[rel_loc]", f"next to {random.choice(obj['neighbors'])}")
+                .replace("[rel_loc]", f"next to {neighbor}")
                 .replace("[room]", "in this room")
                 .replace("[rel_room]", "which is close to that room")
             )
@@ -87,11 +81,13 @@ class FillInTheBlankDataset(Dataset):
             "instructions": sentences,
             "scanvp": obj["scanvp"],
             "obj_id": obj["obj_id"],
-            }
+            "view_id": obj["view_id"],
+        }
     
-def export_fillers(fillers, output):
+   
+def save_json(data, output):
     with open(output, "w") as fid:
-        json.dump(fillers, fid)
+        json.dump(data, fid, indent=2)
     
     
 if __name__ == "__main__":
@@ -102,10 +98,10 @@ if __name__ == "__main__":
     dataset = FillInTheBlankDataset(args.filler, args.tpl)
     dataloader = DataLoader(dataset, num_workers=args.num_workers, batch_size=1, collate_fn=lambda x: x)
 
-    fillers = []
+    samples = []
     for item in tqdm(dataloader):
-        fillers += item
+        samples += item
 
     print(f"Found {len(dataset)}")
 
-    export_fillers(fillers, args.filler_dir)
+    save_json(samples, args.output)

@@ -43,15 +43,18 @@ def detect_neighbors(obj, other_objects):
     closest = sorted(enumerate(distances), key=itemgetter(1))
     return [other_objects[i] for i, d in closest[:5]]
 
-LARGE = ['big', 'huge', 'sizeable', 'substantial', 'immense', 'enormous', 'colossal', 'massive', 'mammoth']
-# vast cosmic  goodly prodigious tremendous gigantic giant monumental stupendous
+LARGE = ["large", 'big', 'huge', 'sizeable', 'substantial', 'immense', 'enormous', 'colossal', 'massive',  "vast",  "giant"]
+SMALL = ["little", "small", "compact", "tiny", "mini"]
 
 def detect_attributes(obj):
     size = np.prod(obj['3d_size'])
     if size > 0.5:
         return [random.choice(LARGE)]
+    if size < 0.1:
+        return [random.choice(SMALL)]
     return []
     
+
 class FillerDataset(Dataset):
     """
     Load the preprocessed data and produce a list of fillers.
@@ -83,7 +86,7 @@ class FillerDataset(Dataset):
     
 def export_fillers(fillers, output):
     with open(output, "w") as fid:
-        json.dump(fillers, fid)
+        json.dump(fillers, fid, indent=2)
     
     
 if __name__ == "__main__":
