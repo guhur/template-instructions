@@ -41,7 +41,7 @@ def detect_neighbors(obj, other_objects):
             continue
         distances.append(((np.array(oth['3d_center']) - center) ** 2).sum())
     closest = sorted(enumerate(distances), key=itemgetter(1))
-    return [other_objects[i] for i, d in closest[:5]]
+    return [other_objects[i]['name'] for i, d in closest[:5]]
 
 LARGE = ["large", 'big', 'huge', 'sizeable', 'substantial', 'immense', 'enormous', 'colossal', 'massive',  "vast",  "giant"]
 SMALL = ["little", "small", "compact", "tiny", "mini"]
@@ -54,6 +54,17 @@ def detect_attributes(obj):
         return [random.choice(SMALL)]
     return []
     
+def detect_room(obj):
+    rooms = ['kitchen', 'living room', 'bathroom', 'bedroom', 'garage', 'office', 'hallway']
+    return random.choice(rooms)
+
+def detect_level(obj):
+    z = obj['3d_center'][2]
+    if z < -0.1:
+        return 0
+    if z > 2:
+        return 2
+    return 1
 
 class FillerDataset(Dataset):
     """
@@ -72,7 +83,9 @@ class FillerDataset(Dataset):
                             "scanvp": vp['scanvp'],
                             "view_id": obj["view_id"],
                             "obj_id": obj["obj_id"],
-                            "name": "cabinet",
+                            "level": detect_level(obj),
+                            "name": obj['name'],
+                            "room": detect_room(obj),
                             "neighbors": detect_neighbors(obj, vp['bboxes']),
                             "attributes": detect_attributes(obj),
                         })

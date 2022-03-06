@@ -35,7 +35,7 @@ class Arguments(tap.Tap):
     num_workers: int = 20
 
 
-PoSTag = Literal['conn', 'attr', 'object', 'rel_loc', 'room', 'rel_room', 'NP']
+PoSTag = Literal['conn', 'attr', 'object', 'rel_loc', 'room', 'rel_room', 'NP', 'level']
 
 @dataclass
 class PartOfSpeech:
@@ -398,10 +398,118 @@ class SoonDataset(Dataset):
 def collate_without_none(samples):
     return [s for s in samples if s is not None]
 
+
 class ReverieDataset(SoonDataset):
     """
     Load the REVERIE dataset instructions
     """
+    def __init__(self, dataset: Path):
+        with open(dataset) as fid:
+            data = json.load(fid)
+        self.instructions = []
+        for item in data:
+            self.instructions += item["instructions"]
+        self.verbose = False
+        
+        self.predictor: Predictor =  Predictor.from_path(
+            "https://storage.googleapis.com/allennlp-public-models/elmo-constituency-parser-2020.02.10.tar.gz"
+        )
+
+    def __len__(self):
+        # DEBUG
+        # return 100
+        return len(self.instructions)
+
+    def __getitem__(self, index: int):
+        def split_instruction(instr, predictor):
+            preds = predictor.predict(sentence=instr)
+            node = preds['hierplane_tree']['root']
+            num_children = len([n for n in node['children'] if n['nodeType'] != '.'])
+            while num_children < 2:
+                node = node['children'][0]
+                num_children = len([n for n in node['children'] if n['nodeType'] != '.'])
+            segments = []
+            nodes = node['children']
+            nodeTypes = [n['nodeType'] for n in node['children']]
+    
+            while 'CC' in nodeTypes:
+                index = nodeTypes.index('CC')
+                segments.append(nodes[:index])
+                nodeTypes = nodeTypes[index + 1:]
+                nodes = nodes[index + 1:]
+                
+            if nodeTypes != []:
+                segments.append(nodes)
+                
+            return segments
+
+        def extract_objects(subinstr, instr, predictor):
+            rooms = ['hall', 'room', 'area', 'closet', 'garage', 'kitchen', 'stair', 'office', 'entryway', 'lounge']
+            preds = predictor.predict(sentence=subinstr)
+            
+            node = preds['hierplane_tree']['root']
+            num_children = len([n for n in node['children'] if n['nodeType'] != '.'])
+            while num_children < 2:
+                node = node['children'][0]
+                num_children = len([n for n in node['children'] if n['nodeType'] != '.'])
+                
+            nps = filter_node_with(['NP', 'PP'], node)
+            if nps == [node]:
+                nps = filter_node_with(['NP'], node)
+                
+            part_of_speeches = []
+            
+            for np in nps:
+                text = np['word']
+                if 'level' in text:
+                    label = 'level'
+                elif any(r in text for r in rooms):
+                    label = 'room'
+                elif text in ('me', 'it'):
+                    continue
+                elif np['children'][0]['nodeType'] in ('IN', ):
+                    label = 'rel_loc'
+                else:
+                    label = 'object'
+
+                if np['nodeType'] == 'PP':
+                    nps = filter_node_with(['NP'], np)
+                    if nps != []:
+                        np = nps[0]
+                            
+                # remove DT
+                text = np['word']
+                if np['children'][0]['nodeType'] == 'DT':
+                    dt = np['children'][0]['word']
+                    text = text[len(dt):]
+                text = text.strip(",. ")
+                
+                part_of_speeches.append(text_to_pos(text, instr, label))
+                
+            return part_of_speeches
+
+        instr = self.instructions[index]
+        instr = clean_up(instr).lower()
+        part_of_speeches = []
+        for seg in split_instruction(instr, self.predictor):
+            subinstr = " ".join(s['word'] for s in seg)
+            # print("---", subinstr)
+            try:
+                part_of_speeches += extract_objects(subinstr, instr, self.predictor)
+            except (NotFindError, IndexError, ValueError, KeyError) as e:
+                print("ERROR", e)
+                return None
+            # for obj in part_of_speeches:
+            #     print("------", obj.tag.upper(), obj.text)
+
+        part_of_speeches = sorted(part_of_speeches, key=lambda item: item.start)
+        cursor = 0
+        for pos in part_of_speeches:
+            pos.start = max(pos.start, cursor)
+            cursor = pos.end + 1
+        part_of_speeches =  fill_with('conn', instr, part_of_speeches, verbose=False)
+        return part_of_speeches
+
 
 def export_templates(templates: List[List[PartOfSpeech]], output: Path):
     tpls = []

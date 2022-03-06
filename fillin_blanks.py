@@ -30,20 +30,6 @@ def load_jsonl(filename: Union[str, Path]):
     return lines
 
     
-def detect_neighbors(obj, other_objects):
-    distances = []
-    center = np.array(obj['3d_center'])
-    for oth in other_objects:
-        if oth == obj: 
-            continue
-        distances.append(((np.array(oth['3d_center']) - center) ** 2).sum())
-    closest = sorted(enumerate(distances), key=itemgetter(1))
-    return [other_objects[i] for i, d in closest[:5]]
-
-LARGE = ['big', 'huge', 'sizeable', 'substantial', 'immense', 'enormous', 'colossal', 'massive', 'mammoth']
-# vast cosmic  goodly prodigious tremendous gigantic giant monumental stupendous
-
-
 class FillInTheBlankDataset(Dataset):
     """
     Load the preprocessed data and produce a list of fillers.
@@ -54,12 +40,6 @@ class FillInTheBlankDataset(Dataset):
         with open(template) as fid:
             self.templates = json.load(fid)
 
-        # "scanvp": vp['scanvp'],
-        # "view_id": obj["view_id"],
-        # "name": "cabinet",
-        # "neighbors": detect_neighbors(obj, vp['bboxes']),
-        # "attributes": detect_attributes(obj),
-
     def __len__(self):
         return len(self.samples)
 
@@ -68,12 +48,15 @@ class FillInTheBlankDataset(Dataset):
         sentences = []
         for i in range(3):
             template = random.choice(self.templates)
-            neighbor = random.choice(obj['neighbors'])['name'] if obj['neighbors'] != [] else 'next to this object'
+            neighbor = random.choice(obj['neighbors']) if obj['neighbors'] != [] else 'next to this object'
+            rooms = ['kitchen', 'living room', 'bathroom', 'bedroom', 'garage', 'office', 'hallway']
+            room = random.choice(rooms)
             sentences.append(
                 template.replace("[object]", obj["name"])
                 .replace("[attr]", " ".join(obj["attributes"]))
-                .replace("[rel_loc]", f"next to {neighbor}")
-                .replace("[room]", "in this room")
+                .replace("[rel_loc]", neighbor)
+                .replace("[room]", room)
+                .replace("[level]", f"level {obj['level']}")
                 .replace("[rel_room]", "which is close to that room")
             )
 
