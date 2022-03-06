@@ -11,6 +11,7 @@ from itertools import combinations, product
 from pathlib import Path
 import random
 from tqdm import tqdm
+import transformers
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import tap
@@ -21,6 +22,7 @@ class Arguments(tap.Tap):
     filler: Path
     output: Path
     mode: Literal['soon', 'reverie']
+    export: Literal['jsonl', 'json'] = 'jsonl'
     num_workers: int = 20
 
 
@@ -39,6 +41,8 @@ class FillInTheBlankDataset(Dataset):
             self.samples = json.load(fid)
         with open(template) as fid:
             self.templates = json.load(fid)
+
+        self.tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased')
 
     def __len__(self):
         return len(self.samples)
@@ -59,19 +63,31 @@ class FillInTheBlankDataset(Dataset):
                 .replace("[level]", f"level {obj['level']}")
                 .replace("[rel_room]", "which is close to that room")
             )
+        
+        instr_encoding = self.tokenizer(sentences)['input_ids']
+        scan, vp = obj["scanvp"].split("_")
 
-        return {
-            "instructions": sentences,
-            "scanvp": obj["scanvp"],
-            "obj_id": obj["obj_id"],
+        return [{
+            "instructions": stc,
+            "instr_encoding": enc,
+            "scan": scan,
+            "pos_vps": [vp],
+            "objid": obj["obj_id"],
+            "instr_id": f"{index}_{i}",
             "view_id": obj["view_id"],
-        }
+        } for i, (stc, enc) in enumerate(zip(sentences, instr_encoding))]
     
    
 def save_json(data, output):
     with open(output, "w") as fid:
         json.dump(data, fid, indent=2)
     
+def save_jsonl(data, output):
+    jsonl = [
+        json.dumps(sample) for sample in data
+    ]
+    with open(output, "w") as fid:
+        fid.write("\n".join(jsonl))
     
 if __name__ == "__main__":
 
@@ -79,7 +95,7 @@ if __name__ == "__main__":
     print(args)
 
     dataset = FillInTheBlankDataset(args.filler, args.tpl)
-    dataloader = DataLoader(dataset, num_workers=args.num_workers, batch_size=1, collate_fn=lambda x: x)
+    dataloader = DataLoader(dataset, num_workers=args.num_workers, batch_size=1, collate_fn=lambda x: sum(x, []))
 
     samples = []
     for item in tqdm(dataloader):
@@ -87,4 +103,7 @@ if __name__ == "__main__":
 
     print(f"Found {len(dataset)}")
 
-    save_json(samples, args.output)
+    if args.export == "json":
+        save_json(samples, args.output)
+    elif args.export == "jsonl":
+        save_jsonl(samples, args.output)

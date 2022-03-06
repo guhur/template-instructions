@@ -496,7 +496,8 @@ class ReverieDataset(SoonDataset):
             # print("---", subinstr)
             try:
                 part_of_speeches += extract_objects(subinstr, instr, self.predictor)
-            except (NotFindError, IndexError, ValueError, KeyError) as e:
+            # except (NotFindError, IndexError, ValueError, KeyError) as e:
+            except Exception as e:
                 print("ERROR", e)
                 return None
             # for obj in part_of_speeches:
